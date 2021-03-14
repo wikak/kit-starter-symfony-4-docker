@@ -1,0 +1,69 @@
+version: '2'
+
+volumes:
+   mysqldata: ~
+   # On rajoute un volume (de données non accessibles en dehors)
+   appdata: ~
+
+services:
+    php:
+        build: .docker/php
+        links:
+            - mysql
+            - redis
+            - mailcatcher
+        depends_on:
+            - mysql
+        volumes:
+            # Le code sera surtout modifié en dehors du container, donc la consistence est prioritairement dans ce sens
+            - ..:/var/www/html:cached
+            # On s'assure que le cache et les logs ne restent que sur le container
+            # Version Symfony 4
+            #- appdata:/var/www/html/var/cache
+            #- appdata:/var/www/html/var/log
+            # Version Symfony3 (var/logs au lieu de var/log)
+            - appdata:/var/www/html/var/cache
+            - appdata:/var/www/html/var/logs
+            # Version Symfony 2
+            #- appdata:/var/www/html/app/cache
+            #- appdata:/var/www/html/app/logs
+            # A l'inverse, les vendors seront surtout modifiés dans le container
+            #- ./vendor:/var/www/html/vendor:delegated
+        working_dir: /var/www/html
+        ports:
+            # On se lit au port 80 local, mais on pourrait aussi en choisir un autre comme par exemple "8080:80"
+            - "80:80"
+    mysql:
+        image: mysql:5.7
+        volumes:
+            - mysqldata:/var/lib/mysql
+        environment:
+            # Nécessaire
+            - MYSQL_ROOT_PASSWORD=rootpass0
+            # On peut configurer sa BDD et les credentials pour s'y connecter
+            - MYSQL_DATABASE=mydb
+            - MYSQL_USER=dbuser
+            - MYSQL_PASSWORD=dbpass
+        ports:
+            # On rend la BDD accessible depuis notre ordinateur pour le débug
+            - "3307:3307"
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: phpmyadmin
+        hostname: phpmyadmin.local
+        environment:
+          - PMA_HOST=mysql
+          - PMA_USER=dbuser
+          - PMA_PASSWORD=dbpass
+          - PMA_PORT=3306
+        ports:
+            - 8081:80
+        links:
+            - mysql
+    redis:
+        image: redis:3.0.7-alpine
+    mailcatcher:
+       image : schickling/mailcatcher
+       container_name: mailcatcher
+       ports:
+          - "1080:1080"
